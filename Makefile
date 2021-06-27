@@ -7,7 +7,8 @@ KVERSION_SHORT ?= 4.19.0-12-$(KERNEL_ABI_MINOR_VERSION)
 KVERSION ?= $(KVERSION_SHORT)-amd64
 KERNEL_VERSION ?= 4.19.152
 KERNEL_SUBVERSION ?= 1
-kernel_procure_method ?= build
+kernel_procure_method = download
+kernel_force_download = no
 CONFIGURED_ARCH ?= amd64
 
 LINUX_HEADER_COMMON = linux-headers-$(KVERSION_SHORT)-common_$(KERNEL_VERSION)-$(KERNEL_SUBVERSION)_all.deb
@@ -34,12 +35,14 @@ LINUX_IMAGE_URL = "https://sonicstorage.blob.core.windows.net/packages/kernel-pu
 $(addprefix $(DEST)/, $(MAIN_TARGET)): $(DEST)/% :
 	# Obtaining the Debian kernel packages
 	rm -rf $(BUILD_DIR)
+ifneq ($(kernel_force_download), no)
 	wget --no-use-server-timestamps -O $(LINUX_HEADER_COMMON) $(LINUX_HEADER_COMMON_URL)
 	wget --no-use-server-timestamps -O $(LINUX_HEADER_AMD64) $(LINUX_HEADER_AMD64_URL)
 	wget --no-use-server-timestamps -O $(LINUX_IMAGE) $(LINUX_IMAGE_URL)
+endif
 
 ifneq ($(DEST),)
-	mv $(DERIVED_TARGETS) $* $(DEST)/
+	cp $(DERIVED_TARGETS) $* $(DEST)/
 endif
 
 $(addprefix $(DEST)/, $(DERIVED_TARGETS)): $(DEST)/% : $(DEST)/$(MAIN_TARGET)
@@ -60,9 +63,11 @@ ORIG_FILE_URL = "$(SOURCE_FILE_BASE_URL)/$(ORIG_FILE)"
 $(addprefix $(DEST)/, $(MAIN_TARGET)): $(DEST)/% :
 	# Obtaining the Debian kernel source
 	rm -rf $(BUILD_DIR)
+ifneq ($(kernel_force_download), no)
 	wget -O $(DSC_FILE) $(DSC_FILE_URL)
 	wget -O $(ORIG_FILE) $(ORIG_FILE_URL)
 	wget -O $(DEBIAN_FILE) $(DEBIAN_FILE_URL)
+endif
 
 	dpkg-source -x $(DSC_FILE)
 
@@ -104,15 +109,11 @@ $(addprefix $(DEST)/, $(MAIN_TARGET)): $(DEST)/% :
 
 	# Building a custom kernel from Debian kernel source
 	ARCH=$(CONFIGURED_ARCH) DEB_HOST_ARCH=$(CONFIGURED_ARCH) DEB_BUILD_PROFILES=nodoc fakeroot make -f debian/rules -j $(shell nproc) binary-indep
-ifeq ($(CONFIGURED_ARCH), armhf)
-	ARCH=$(CONFIGURED_ARCH) DEB_HOST_ARCH=$(CONFIGURED_ARCH) fakeroot make -f debian/rules.gen -j $(shell nproc) binary-arch_$(CONFIGURED_ARCH)_none_armmp
-else
 	ARCH=$(CONFIGURED_ARCH) DEB_HOST_ARCH=$(CONFIGURED_ARCH) fakeroot make -f debian/rules.gen -j $(shell nproc) binary-arch_$(CONFIGURED_ARCH)_none_$(CONFIGURED_ARCH)
-endif
 	popd
 
 ifneq ($(DEST),)
-	mv $(DERIVED_TARGETS) $* $(DEST)/
+	cp $(DERIVED_TARGETS) $* $(DEST)/
 endif
 
 $(addprefix $(DEST)/, $(DERIVED_TARGETS)): $(DEST)/% : $(DEST)/$(MAIN_TARGET)
